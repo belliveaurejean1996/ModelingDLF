@@ -1,0 +1,22 @@
+! create the array for the X and Y position 
+! FOR THE FIRST ROW OF ELEMENTS
+allsel
+
+*get,MaxE,ELEM,,NUM,MAX
+*get,MinE,ELEM,,NUM,MIN
+*get,ENUM,ELEM,,COUNT
+
+*del,myPosition
+*dim,myPosition,ARRAY,ENUM,3
+*do,i,1,ENUM
+    myPosition(i,1) = i
+    *get,myPosition(i,2),ELEM,i,CENT,x
+    *get,myPosition(i,3),ELEM,i,CENT,y
+*enddo
+
+/OUTPUT,'ELMPOS','csv','.'
+*VWRITE,'Number','PosX','PosY' 
+%C, %C, %C 
+*VWRITE,myPosition(1,1),myPosition(1,2),myPosition(1,3)  
+%G, %G, %G 
+/OUTPUT,TERM

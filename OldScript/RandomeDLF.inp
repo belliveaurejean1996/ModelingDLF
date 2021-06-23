@@ -1,0 +1,112 @@
+C*********************
+C*** Initialisation
+C*********************
+
+finish
+/clear
+/PREP7 
+
+/TITLE, 3D DLF composite, Damage progression model
+
+C*********************
+C*** create the mesh
+C********************
+
+Height = 25
+LENGTH = 50
+Thick = 3
+t = 0.125
+
+
+! define nodal position
+*do,k,0,Thick
+    *do,i,0,LENGTH
+        *do,j,0,Height
+            N,,i*1e-3,j*1e-3,k*t*1e-3
+        *enddo
+    *enddo
+*enddo
+
+! define element via node numering
+ET,1,SOLID185
+
+*do,k,0,Thick-1
+    *do,j,0,LENGTH-1
+        q = (Height+1)*j
+        *do,i,1,Height
+            Nodei = i+q+k*((Height+1)*(LENGTH+1))
+            Nodej = i+1+q+k*((Height+1)*(LENGTH+1))
+            Nodek = i+Height+2+q+k*((Height+1)*(LENGTH+1))
+            NodeL = i+Height+1+q+k*((Height+1)*(LENGTH+1))
+            NodeM = i+q+k*((Height+1)*(LENGTH+1)) + (Height+1)*(LENGTH+1)
+            NodeN = i+1+q+k*((Height+1)*(LENGTH+1)) + (Height+1)*(LENGTH+1)
+            NodeO = i+Height+2+q+k*((Height+1)*(LENGTH+1)) + (Height+1)*(LENGTH+1)
+            NodeP = i+Height+1+q+k*((Height+1)*(LENGTH+1)) + (Height+1)*(LENGTH+1)
+            E, Nodei, Nodej, Nodek, NodeL, NodeM, NodeN, NodeO, NodeP
+        *enddo
+    *enddo
+*enddo
+
+C*************************************************
+C*** Define the randome orientation of the model
+C*************************************************
+allsel
+
+! position the element number si a 3d array
+! define a array with all 100
+*del,ElmNum
+*del,ElmPos
+*dim,ElmNum,ARRAY,Height,LENGTH,Thick
+*dim,ElmPos,ARRAY,Height,LENGTH,Thick
+
+initial = 0
+*do,i,1,Height
+    *do,j,1,LENGTH
+        *do,k,1,Thick
+            initial = initial + 1
+            ElmNum(i,j,k) = initial
+            ElmPos(i,j,k) = 100
+        *enddo
+    *enddo
+*enddo
+
+! create the array for the X and Y position
+allsel
+*del,myPosition
+*dim,myPosition,ARRAY,Height*LENGTH,2
+wanted_SYS = 0
+*do,i,1,LENGTH*Height
+    esel,s,,,i
+    *get,myPosition(i,1),cdsy,wanted_SYS,loc,x
+    *get,myPosition(i,2),cdsy,wanted_SYS,loc,y
+*enddo
+
+*del,ElmX
+*del,ElmY
+*dim,ElmX,ARRAY,Height,LENGTH
+*dim,ElmY,ARRAY,Height,LENGTH
+initial = 0
+*do,i,1,Height
+    *do,j,1,LENGTH
+        initial = initial + 1
+        ElmX(i,j) = myPosition(initial,1)
+        ElmY(i,j) = myPosition(initial,2)
+    *enddo
+*enddo
+
+! create the random position and random orientation of the chip
+pi = 3.14159
+
+*del,Theta
+*del,ChipX
+*del,ChipY
+
+*Dim,Theta,ARRAY,1
+*Dim,ChipX,ARRAY,1
+*Dim,ChipY,ARRAY,1
+
+*vfill,Theta,rand,-90,90
+*vfill,ChipX,rand,0,LENGTH
+*vfill,ChipY,rand,0,Height
+
+

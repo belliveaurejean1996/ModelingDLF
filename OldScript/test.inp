@@ -1,0 +1,42 @@
+/clear
+/TITLE, SNAP-THROUGH BUCKLING OF A HINGED SHELL, Composite Plate
+
+! ******************
+! Pre Processor
+! ******************
+
+/PREP7
+
+! Element type
+ET,1,SHELL181
+
+! Define Shell section
+SECT,1,SHELL
+SECD,2,1,45             ! SHELL THICKNESS
+SECD,2,1,0              ! SHELL THICKNESS
+SECD,2,1,-45            ! SHELL THICKNESS
+
+! Define material data
+MP,EX,1,3102.75
+MP,NUXY,1,0.3
+
+! Geometry
+R1 = 2540                ! SHELL MID-SURFACE RADIUS
+L  = 254                 ! HALF THE LENGTH
+PI = 4*ATAN(1)           ! VALUE OF PI COMPUTED
+THETA = 0.1*180/PI       ! 0.1 RADIANS CONVERTED TO DEGREES
+CSYS,1                   ! CYLINDRICAL CO-ORDINATE SYSTEM
+N,1,R1,90                ! NODES 1 AND 2 ARE CREATED AT POINTS
+N,2,R1,90,L              ! A AND B RESPECTIVELY.
+N,3,R1,(90-THETA)
+N,4,R1,(90-THETA),L
+FILL,1,2,1,5,1
+FILL,2,4,1,6,1
+FILL,4,3,1,7,1
+FILL,3,1,1,8,1
+FILL,8,6,1,9,1          
+E,3,8,9,7
+E,7,9,6,4
+E,8,1,5,9
+E,9,5,2,6
+

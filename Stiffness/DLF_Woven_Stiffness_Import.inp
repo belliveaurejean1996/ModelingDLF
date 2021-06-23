@@ -1,0 +1,255 @@
+
+NumResults = 25
+*del,results
+*DIM,results,table,NumResults
+
+*do,k,1,NumResults
+
+
+    finish
+    /FILNAME,WDLFcomposite%k%,1
+
+    !************************************************************
+    !*** Initialisation
+    !************************************************************
+    PARSAV,all,ParametersSaved
+    finish
+    /clear
+    PARRES,NEW,ParametersSaved
+    /PREP7 
+
+    /TITLE, 3D DLF composite Unidirectionnal, Stiffness
+
+    !************************************************************
+    !*** create the mesh
+    !************************************************************
+
+    !element type
+    ET,1,SOLID185
+
+    ! define the geometry of the speciemen (MM)
+    LENGTH = 150
+    HEIGTH = 25
+    THICK = 2.52
+    BLOCK,0,LENGTH,0,HEIGTH,0,THICK 
+
+    ! CHIP DIMENTIONS (MM)
+    CDIMX = 12
+    CDIMY = 12
+    CDIMZ = 0.14
+    CAREA = CDIMX*CDIMY
+
+    ! mesh the part
+    NELMX = 150             ! NUMBER OF ELEMENTS IN THE Y DIRECTION
+    NELMY = 25              ! NUMBER OF ELEMENTS IN THE X DIRECTION
+    NELMZ = THICK/CDIMZ     ! NUMBER OF ELEMENTS IN THE Z DIRECTION
+
+    allsel,all 
+    LSEL, s, line,,5
+    LESIZE,all, , ,NELMX, , , , ,1
+
+    allsel,all
+    LSEL, s, line,,6
+    LESIZE,all, , ,NELMY, , , , ,1 
+
+    allsel,all
+    LSEL, s, line,,11 
+    LESIZE,all, , ,NELMZ, , , , ,1  
+
+    allsel,all
+    TYPE,1   
+    MAT,1
+    ESYS,0   
+    SECNUM, 
+    VMESH,all   
+
+    !************************************************************
+    !*** Coordinates
+    !************************************************************
+
+    ! import the Localcoordinate data
+    to_skip=0 ! enter number of lines to skip–NONE in this example
+    /INQUIRE,numlines,LINES,Data%k%,csv
+    to_read=numlines-to_skip
+    !
+    *DEL,myCoord,,NOPR
+    *DIM,myCoord,TABLE,to_read ! table array to hold data
+    *TREAD,myCoord,Data%k%,csv,,to_skip
+
+    *DEL,myarray,,NOPR
+    *DIM,myarray,ARRAY,to_read,2
+    !
+    *vfun,myarray(1,1),copy,myCoord(1,0) ! Shift column to right
+    *vfun,myarray(1,2),copy,myCoord(1,1) ! Shift column to right
+
+    *do,i,1,numlines
+        CSYS,0
+        CLOCAL,myarray(i,1),0,0,0,0,myarray(i,2),0,0,
+        CSYS,0
+    *enddo
+
+    !************************************************************
+    !*** Assign coordinate systeme to elements
+    !************************************************************
+
+    ! import the Element data
+    to_skip=0 ! enter number of lines to skip–NONE in this example
+    /INQUIRE,numlines,LINES,DataElm%k%,csv
+    to_read=numlines-to_skip
+
+    *DEL,myElmData,,NOPR
+    *DIM,myElmData,TABLE,to_read ! table array to hold data
+    *TREAD,myElmData,DataElm%k%,csv,,to_skip
+
+    *DEL,myarrayElm,,NOPR
+    *DIM,myarrayElm,ARRAY,to_read,2
+    !
+    *vfun,myarrayElm(1,1),copy,myElmData(1,0) ! Shift column to right
+    *vfun,myarrayElm(1,2),copy,myElmData(1,1) ! Shift column to right
+
+    *do,i,1,numlines
+        ESEL,S,ELEM,,myarrayElm(i,1)
+        EMODIF,ALL,ESYS,myarrayElm(i,2)
+    *enddo
+
+
+    ! vue on the back and select the element and no numbers
+    allsel,all
+    /PNUM,KP,0  
+    /PNUM,LINE,0
+    /PNUM,AREA,0
+    /PNUM,VOLU,0
+    /PNUM,NODE,0
+    /PNUM,TABN,0
+    /PNUM,SVAL,0
+    /NUMBER,1   
+    /PNUM,ESYS,1
+    /REPLOT 
+    /VIEW,1,,,-1
+    /ANG,1  
+    /REP,FAST   
+
+    !************************************************************
+    !*** Define material properties
+    !************************************************************
+    ! Define material elastic
+    E11 = 56100
+    E22 = 57300
+    E33 = 10000 ! meme que direction 2 de UD
+
+    nu12 = 0.04
+    nu13 = 0.3
+    nu23 = 0.3
+
+    G12 = 4500
+    G13 = 4000
+    G23 = 4000
+
+    MP,EX,1,E11   
+    MP,EY,1,E22   
+    MP,EZ,1,E33  
+    MP,PRXY,1,nu12
+    MP,PRYZ,1,nu23
+    MP,PRXZ,1,nu13
+    MP,GXY,1,G12 
+    MP,GYZ,1,G23
+    MP,GXZ,1,G13
+
+    !*******************************
+    !*** define boundry conditions
+    !*******************************
+
+    ! select moving nodes
+    ALLsel,all
+    NSEL,S,LOC,x,LENGTH-0.1,LENGTH+0.1
+    CM,MovingNodes,NODE
+
+    ! select fix nodes
+    ALLsel,all
+    NSEL,S,LOC,x,-0.1,0.1
+    CM,FixNodes,NODE
+
+    ! select encaster node
+    allsel,all
+    NSEL,S,LOC,x,-0.1,0.1
+    NSEL,R,LOC,y,(HEIGTH/2-1),(HEIGTH/2+1)
+    NSEL,R,LOC,z,(THICK/2-0.1),(THICK/2+0.1)
+    CM,EncasterNodes,NODE
+
+    ! apply BC to fix nodes
+    allsel,all
+    CMSEL,s,fixNodes ! reselect name selection
+    D,ALL,UX,0
+
+    ! apply BC to moving nodes
+    allsel,all
+    CMSEL,s,MovingNodes ! reselect name selection
+    D,ALL,UX,LENGTH*0.002
+
+    ! apply BC to encaster nodes
+    allsel,all
+    CMSEL,s,EncasterNodes ! reselect name selection
+    D,ALL,ALL
+
+    finish
+
+    !****************************
+    !*** define analysis setting
+    !****************************
+
+    /solu
+    allsel,all
+    ANTYPE,STATIC,new
+
+    ! output results options
+    outres,Erase
+    outres,basic,1
+
+    ! time step option
+    AUTOTS,on
+    NSUBST,5,5,5
+    TIME,1
+
+    SAVE
+    solve
+    finish
+
+    !****************************
+    !*** PostProcessing
+    !****************************
+
+    ! modulus mesurement
+    /post1
+    set,last
+
+    ETABLE,vol_elem,VOLU,        ! Stores the volume of each element
+    ETABLE,stress_elem,S,X       ! Stores stress information for elements
+    ETABLE,strain_elem,EPEL,X    ! Stores strain information for elements
+
+    SMULT,weighted_elemstress,stress_elem,vol_elem,1,1, 			! This step multiplies each element stress by corresponding volume
+    SSUM  										! Simply sum up the ETABLE entities
+    *get,total_vol,ssum,,item,vol_elem                               	! Stores sum of total volume
+    *get,total_weighted_elemstress,ssum,,item,weighted_elemstress   	! Stores sum of weighted element stress
+
+    SMULT,weighted_elemstrain,strain_elem,vol_elem,1,1, 		   	! This step multiplies each element strain by corresponding volume
+    SSUM  									   	! Simply sum up the ETABLE entities
+    *get,total_weighted_elemstrain,ssum,,item,weighted_elemstrain    	! Stores sum of weighted element strain
+
+    my_volume_average_elementstress = total_weighted_elemstress/total_vol   ! Calculates volume weighted average of element stress
+    my_volume_average_elementstrain = total_weighted_elemstrain/total_vol   ! Calculates volume weighted average of element strain
+
+    my_Ex = (my_volume_average_elementstress / my_volume_average_elementstrain)/1e3 ! Calculate the transverse modulus of the model
+    
+    finish
+
+    results(k,0) = k
+    results(k,1) = my_Ex
+
+*enddo
+
+/OUTPUT,'ModulusResults','csv','.'
+*VWRITE,'Index','Module(GPA)' 
+%C, %C
+*VWRITE,results(1,0),results(1,1)  
+%G, %G 
+/OUTPUT,TERM

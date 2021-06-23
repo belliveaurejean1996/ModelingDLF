@@ -1,0 +1,170 @@
+C*********************
+C*** Initialisation
+C*********************
+
+finish
+/clear
+/PREP7 
+
+/TITLE, 3D DLF composite, Damage progression model
+
+C*********************
+C*** create the nodes
+C********************
+
+Height = 25
+LENGTH = 250
+Thick = 24
+t = 0.125
+
+! read file with orientation of each local system
+*sread,newstr,data,txt
+*get,ligne,parm,newstr,dim,2 
+*dim,test,table,ligne,1
+*tread,test(0,0),data,txt,,0
+*dim,final,array,ligne,2
+*mfun,final(1,1),copy,test(1,0)
+
+! create local coordinate system
+*do,i,1,Height*LENGTH*Thick
+    Local,i+11,CART,0,0,0,final(i,1)
+    csys,i+11
+*enddo
+
+! reativate global coordiate system
+CSYS,0
+
+! define nodal position
+*do,k,0,Thick
+    *do,i,0,LENGTH
+        *do,j,0,Height
+            N,,i*1e-3,j*1e-3,k*t*1e-3
+        *enddo
+    *enddo
+*enddo
+
+! define element via node numering
+ET,1,SOLID185
+p = 1
+*do,k,0,Thick-1
+    *do,j,0,LENGTH-1
+        q = (Height+1)*j
+        *do,i,1,Height
+            ESYS,P+11 ! change the local coordinate systeme for each element
+
+            Nodei = i+q+k*((Height+1)*(LENGTH+1))
+            Nodej = i+1+q+k*((Height+1)*(LENGTH+1))
+            Nodek = i+Height+2+q+k*((Height+1)*(LENGTH+1))
+            NodeL = i+Height+1+q+k*((Height+1)*(LENGTH+1))
+            NodeM = i+q+k*((Height+1)*(LENGTH+1)) + (Height+1)*(LENGTH+1)
+            NodeN = i+1+q+k*((Height+1)*(LENGTH+1)) + (Height+1)*(LENGTH+1)
+            NodeO = i+Height+2+q+k*((Height+1)*(LENGTH+1)) + (Height+1)*(LENGTH+1)
+            NodeP = i+Height+1+q+k*((Height+1)*(LENGTH+1)) + (Height+1)*(LENGTH+1)
+            E, Nodei, Nodej, Nodek, NodeL, NodeM, NodeN, NodeO, NodeP
+
+            p = p + 1
+        *enddo
+    *enddo
+*enddo
+
+! reativate global coordiate system
+CSYS,0
+
+c***********************************
+c*** Define the material propertes
+c***********************************
+
+! Define material elastic
+MP,EX,1,56.1e9    
+MP,EY,1,57.3e9   
+MP,EZ,1,57.3e9  
+MP,PRXY,1,0.3
+MP,PRYZ,1,0.3
+MP,PRXZ,1,0.3
+MP,GXY,1,4.5e9 
+MP,GYZ,1,4.5e9
+MP,GXZ,1,4.5e9
+
+! Material Strengths
+TB,FCLI,1,1,6
+TBTEMP,0
+TBDATA,1,776e6  ! Failure Stress, Fiber Tension
+TBDATA,2,585e6  ! Failure Stress, Fiber Compression
+TBDATA,3,839e6  ! Toughness Stress, Matrix Tension
+TBDATA,4,595e6  ! Failure Stress, Matrix Compression
+TBDATA,7,155e6  ! Failure Stress, XY Shear
+TBDATA,8,155e6  ! Failure Stress, YZ Shear
+
+! Damage detection using failure criteria
+TB, DMGI, 1, 1, 4, FCRT
+TBTEMP,0
+TBDATA,1,4,4,4,4 ! 4 is the value for selecting Hashin criteria,
+
+! Damage Evolution with CDM Method
+TB,DMGE,1,1,8,CDM
+TBTEMP,0
+TBDATA,1,12.5   ! Fracture Toughness, Fiber Tensile
+TBDATA,2,1e-3   ! Viscosity Damping Coefficient, Fiber Tensile
+TBDATA,3,12.5   ! Fracture Toughness, Fiber Compressive
+TBDATA,4,1e-3   ! Viscosity Damping Coefficient, Fiber Compressive
+TBDATA,5,1      ! Fracture Toughness, Matrix Tensile
+TBDATA,6,1e-5   ! Viscosity Damping Coefficient, Matrix Tensile
+TBDATA,7,1      ! Fracture Toughness, Matrix Compressive
+TBDATA,8,1e-5   ! Viscosity Damping Coefficient, Matrix Compressive
+
+c*******************************
+c*** define boundry conditions
+c*******************************
+
+! select moving nodes
+ALLsel,all
+NSEL,S,LOC,x,(LENGTH-25.4)*1e-3,1
+NSEL,U,LOC,Z,0.1e-3,2.9e-3
+CM,MovingNodes,NODE
+
+! select fix nodes
+ALLsel,all
+NSEL,S,LOC,x,-1,25.4e-3
+NSEL,U,LOC,Z,0.1e-3,2.9e-3
+CM,FixNodes,NODE
+
+! apply BC to fix nodes
+allsel,all
+CMSEL,s,fixNodes ! reselect name selection
+D,all,all
+
+! apply BC to moving nodes
+allsel,all
+CMSEL,s,MovingNodes ! reselect name selection
+D,ALL,UX,1.5e-3
+D,ALL,UY
+D,ALL,UZ
+
+finish
+
+c****************************
+c*** define analysis setting
+c****************************
+/solu
+allsel,all
+ANTYPE,STATIC,new
+NLGEOM,on
+stabilize,Constant,Energy,1e-4
+CUTCONTROL,NPOINT,20
+
+! output results options
+outres,Erase
+outres,basic,5
+outres,AESO,5
+
+! time step option
+AUTOTS,on
+DELTIM,0.05,1e-3,0.1
+TIME,1
+
+SAVE
+!solve
+finish
+
+
+

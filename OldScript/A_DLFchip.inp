@@ -1,0 +1,160 @@
+!*********************
+!*** Initialisation
+!*********************
+
+finish
+/clear
+/PREP7 
+
+/TITLE, Random chip position, DLF composites
+
+!***************************************
+! create the model (nodes and elements)
+!****************************************
+
+! parameters must match the one used on in the python code
+Height = 25
+LENGTH = 250
+
+! Element type
+ET,1,SHELL181
+
+! read file with orientation of each local system
+*sread,newstr,data,txt
+*get,ligne,parm,newstr,dim,2 
+*dim,test,table,ligne,1
+*tread,test(0,0),data,txt,,0
+*dim,final,array,ligne,2
+*mfun,final(1,1),copy,test(1,0)
+
+! create local coordinate system
+*do,i,1,Height*LENGTH
+    Local,i+11,CART,0,0,0,final(i,1)
+    csys,i+11
+*enddo
+
+! reativate global coordiate system
+CSYS,0
+
+! define node location
+*do,i,0,LENGTH
+    *do,j,0,Height
+        N,,i*1e-3,j*1e-3,k*t*1e-3
+    *enddo
+*enddo
+
+! define element location and node selection
+p = 1
+*do,j,0,LENGTH-1
+    q = (Height+1)*j
+    *do,i,1,Height
+        ESYS,P+11 ! change the local coordinate systeme for each element
+        E, i+q, i+1+q, i+Height+2+q, i+Height+1+q
+        p = p + 1
+    *enddo
+*enddo
+
+! reativate global coordiate system
+CSYS,0
+
+! define material properties
+SECT,1,SHELL
+SECD,2,1,0              ! SHELL THICKNESS
+
+! ***********************************
+! Define the material propertes
+! ***********************************
+
+! Define material elastic
+MP,EX,1,1    
+MP,EY,1,1   
+MP,EZ,1,1  
+MP,PRXY,1,1
+MP,PRYZ,1,1
+MP,PRXZ,1,1
+MP,GXY,1,1 
+MP,GYZ,1,1 
+MP,GXZ,1,1 
+
+! Material Strengths
+TB,FCLI,1,1,6
+TBTEMP,0
+TBDATA,1,1 ! Failure Stress, Fiber Tension
+TBDATA,2,1 ! Failure Stress, Fiber Compression
+TBDATA,3,1 ! Toughness Stress, Matrix Tension
+TBDATA,4,1 ! Failure Stress, Matrix Compression
+TBDATA,7,1 ! Failure Stress, XY Shear
+TBDATA,8,1 ! Failure Stress, YZ Shear
+
+! Damage detection using failure criteria
+TB, DMGI, 1, 1, 4, FCRT
+TBTEMP,0
+TBDATA,1,4,4,4,4 ! 4 is the value for selecting Hashin criteria,
+
+! Damage Evolution with CDM Method
+TB,DMGE,1,1,8,CDM
+TBTEMP,0
+TBDATA,1,1 ! Fracture Toughness, Fiber Tensile
+TBDATA,2,1 ! Viscosity Damping Coefficient, Fiber Tensile
+TBDATA,3,1 ! Fracture Toughness, Fiber Compressive
+TBDATA,4,1 ! Viscosity Damping Coefficient, Fiber Compressive
+TBDATA,5,1 ! Fracture Toughness, Matrix Tensile
+TBDATA,6,1 ! Viscosity Damping Coefficient, Matrix Tensile
+TBDATA,7,1 ! Fracture Toughness, Matrix Compressive
+TBDATA,8,1 ! Viscosity Damping Coefficient, Matrix Compressive
+
+! *******************************
+! define boundry conditions
+! *******************************
+
+! select moving nodes
+ALLsel,all
+NSEL,S,LOC,x,(LENGTH-0.1)*1e-3,(LENGTH+0.1)*1e-3
+CM,MovingNodes,NODE
+
+! select fix nodes
+ALLsel,all
+NSEL,S,LOC,x,-0.1*1e-3,0.1*1e-3
+CM,FixNodes,NODE
+
+! apply BC to fix nodes
+allsel,all
+CMSEL,s,fixNodes ! reselect name selection
+D,all,all
+
+! apply BC to moving nodes
+allsel,all
+CMSEL,s,MovingNodes ! reselect name selection
+D,ALL,UX,1e-3
+D,ALL,UY
+D,ALL,UZ
+D,ALL,ROTX
+D,ALL,ROTY
+D,ALL,ROTZ
+
+! ****************************
+! define analysis setting
+! ****************************
+/solu
+allsel,all
+ANTYPE,STATIC,new
+NLGEOM,on
+outres,all,all
+AUTOTS,on
+NSUBST,50,200,50
+TIME,5
+
+SAVE
+!solve
+finish
+
+! ************************
+! post process results
+! ************************
+
+! step by step responce
+/POST1
+
+
+! time history responce
+/POST26

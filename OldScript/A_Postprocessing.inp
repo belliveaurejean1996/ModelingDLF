@@ -1,0 +1,25 @@
+
+c************************
+c*** post process results
+c************************
+
+! step by step responce
+/POST1
+PLNSOL, S,X, 0,1.0  ! nodal stress in x direction
+PLESOL,CDM,DMG      ! Element damage variable
+PLESOL,PDMG,STAT    ! Element damage status
+PLESOL,PFC,MAX      ! Maximum failure mode
+
+
+! Calculate the x modulus
+/post1
+set,last
+
+ETABLE,str_elem,S,EQV                               ! Stores stress information for elements
+ETABLE,vol_elem,VOLU,                               ! Stores the volume of each element
+SMULT,weighted_elemstress,str_elem,vol_elem,1,1,    ! This step multiplies each element stress by corresponding volume
+SSUM                                                ! Simply sum up the ETABLE entities
+*get,total_weighted_elemstress,ssum,,item,weighted_elemstress   ! Stores sum of weighted element stress
+*get,total_vol,ssum,,item,vol_elem                              ! Stores sum of total volume
+my_volume_average_elementstress = total_weighted_elemstress/total_vol   ! Calculates volume weighted average of element stress
+fini

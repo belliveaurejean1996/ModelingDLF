@@ -1,0 +1,63 @@
+!********************************************
+!*** Stress-disp curve (post processing)
+!********************************************
+
+! define the geometry of the speciemen (M)
+LENGTH = 0.150
+HEIGTH = 0.025
+THICK = 0.00252
+
+! force vs time of the moving face
+/post26
+
+ALLsel,all
+CMSEL,s,MovingNodes ! reselect name selection
+
+*get,numbnod,node,,count ! no. of nodes with reaction forces in y-direction
+node=0 ! initialize
+node=ndnext(node)
+rforce,2,node,f,x
+
+*do,i,1,numbnod-1
+    node=ndnext(node)
+    rforce,3,node,f,x
+    add,2,2,3
+*enddo
+
+! calculate the macro-stress
+Division = 1/(HEIGTH*THICK*(10**6))
+ADD,4,2,,,,,,Division,,
+
+! calculate the macro-strain
+NSOL,7,node,U,X, Xdisp,
+ADD,7,7,,,,,,(1/LENGTH)*100,,
+
+! plot the stress strain
+/AXLAB,x,Strain (%)
+/AXLAB,y,Stress (MPa)
+XVAR,7  
+plvar,4
+
+! calculate the max stress
+VGET,Stress,4
+VGET,Displacement,7
+*vscfun, MaxStress, max, Stress
+
+My_MaxStress = MaxStress
+
+!********************************************
+!*** Tension modulus (post processing)
+!********************************************
+
+FirstDisp = Displacement(1,1,1)
+FirstStress = Stress(1,1,1)
+
+SecondDisp = Displacement(2,1,1)
+SecondStress = Stress(2,1,1)
+
+Modulus = (SecondStress-FirstStress)/((SecondDisp-FirstDisp)/LENGTH)
+
+*del,ResultsMat
+*Dim,ResultsMat,ARRAY,2
+ResultsMat(1,1,1) = My_MaxStress
+ResultsMat(2,1,1) = Modulus

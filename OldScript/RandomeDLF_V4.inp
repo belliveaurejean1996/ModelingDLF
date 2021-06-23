@@ -1,0 +1,270 @@
+C************************************************************
+C*** Initialisation
+C************************************************************
+
+finish
+/clear
+/PREP7 
+
+/TITLE, 3D DLF composite, Damage progression model
+
+C************************************************************
+C*** create the mesh
+C************************************************************
+
+!element type
+ET,1,SOLID185
+
+! define the geometry of the speciemen (MM)
+HEIGTH = 25
+LENGTH = 150
+THICK = 3
+BLOCK,0,LENGTH,0,HEIGTH,0,THICK 
+
+! mesh the part
+NELMX = 100 ! NUMBER OF ELEMENTS IN THE Y DIRECTION
+NELMY = 25 ! NUMBER OF ELEMENTS IN THE X DIRECTION
+NELMZ = 5  ! NUMBER OF ELEMENTS IN THE Z DIRECTION
+
+allsel,all 
+LSEL, s, line,,5
+LESIZE,all, , ,NELMX, , , , ,1
+
+allsel,all
+LSEL, s, line,,6
+LESIZE,all, , ,NELMY, , , , ,1 
+
+allsel,all
+LSEL, s, line,,11 
+LESIZE,all, , ,NELMZ, , , , ,1  
+
+allsel,all
+TYPE,1   
+MAT,1
+ESYS,0   
+SECNUM, 
+VMESH,all   
+
+C************************************************************
+C*** DEFINE THE MATERIAL ORIENTATION OF EACH ELEMENTS
+C************************************************************
+
+allsel
+
+! define a 3d array the size of the model (number of elements)
+*del,MainPosition
+*del,MainElementNum
+*dim,MainPosition,ARRAY,NELMX,NELMY,NELMZ
+*dim,MainElementNum,ARRAY,NELMX,NELMY,NELMZ
+initial = 1
+*do,i,1,NELMX
+    *do,j,1,NELMY
+        *do,k,1,NELMZ
+            MainPosition(i,j,k) = 0
+            MainElementNum(i,j,k) = initial
+            initial = initial + 1
+        *enddo
+    *enddo
+*enddo
+
+! create the array for the X and Y position 
+! FOR THE FIRST ROW OF ELEMENTS
+XYELEM = NELMX*NELMY
+allsel
+*del,myPosition
+*dim,myPosition,ARRAY,XYELEM,2
+*do,i,1,XYELEM
+    *get,myPosition(i,1),ELEM,i,CENT,x
+    *get,myPosition(i,2),ELEM,i,CENT,y
+*enddo
+
+
+! create the random position and random orientation of the chip
+CHIPNUM = 25 ! number of chips
+
+pi = 3.14159
+
+*del,Theta
+*del,ChipX
+*del,ChipY
+
+*Dim,Theta,ARRAY,CHIPNUM
+*Dim,ChipX,ARRAY,CHIPNUM
+*Dim,ChipY,ARRAY,CHIPNUM
+
+*vfill,Theta,rand,-90,90
+*vfill,ChipX,rand,0,LENGTH
+*vfill,ChipY,rand,0,HEIGTH
+
+! CHIP DIMENTIONS (MM)
+CDIMX = 25
+CDIMY = 25
+CDIMZ = 1
+CAREA = CDIMX*CDIMY
+
+! changer do loop a un while loop
+*do,i,1,CHIPNUM
+
+    angle = Theta(i)*pi/180 ! change angle to radian
+
+    ! REDEFINE COORDINATE SYSTEME OF ELEMENTS
+    ! coordinate system must start a 12
+    CLOCAL,11+i,0,ChipX(i),ChipY(i),0,Theta(i),0,0,
+    CSYS,0
+
+    ! CALCULATE WHAT ELEMENTS ARE INSIDE OF CHIP
+    x1=ChipX(i)-((CDIMX/2)*cos(angle))-((CDIMY/2)*sin(angle))
+    y1=ChipY(i)-((CDIMX/2)*sin(angle))+((CDIMY/2)*cos(angle))
+
+    x2=ChipX(i)+((CDIMX/2)*cos(angle))-((CDIMY/2)*sin(angle))
+    y2=ChipY(i)+((CDIMX/2)*sin(angle))+((CDIMY/2)*cos(angle))
+
+    x3=ChipX(i)+((CDIMX/2)*cos(angle))+((CDIMY/2)*sin(angle))
+    y3=ChipY(i)+((CDIMX/2)*sin(angle))-((CDIMY/2)*cos(angle))
+
+    x4=ChipX(i)-((CDIMX/2)*cos(angle))+((CDIMY/2)*sin(angle))
+    y4=ChipY(i)-((CDIMX/2)*sin(angle))-((CDIMY/2)*cos(angle))
+
+    ! check what elements are inside of chip and create name selection of elements
+    *del,ChipIn
+    *dim,ChipIn,ARRAY,XYELEM
+
+    *do,j,1,XYELEM
+        ABP = abs(((x1*y2)+(x2*myPosition(j,2))+(myPosition(j,1)*y1)-(y1*x2)-(y2*myPosition(j,1))-(myPosition(j,2)*x1))/2)
+        ADP = abs(((x1*y3)+(x3*myPosition(j,2))+(myPosition(j,1)*y1)-(y1*x3)-(y3*myPosition(j,1))-(myPosition(j,2)*x1))/2)
+        DCP = abs(((x3*y4)+(x4*myPosition(j,2))+(myPosition(j,1)*y3)-(y3*x4)-(y4*myPosition(j,1))-(myPosition(j,2)*x3))/2)
+        BCP = abs(((x4*y2)+(x2*myPosition(j,2))+(myPosition(j,1)*y4)-(y4*x2)-(y2*myPosition(j,1))-(myPosition(j,2)*x4))/2)
+        AreaCal = ABP+ADP+DCP+BCP
+
+        *if,AreaCal,le,CAREA,then
+            ChipIn(j) = (11+i)
+        *endif
+    *enddo
+
+    ! build the main matrix with all element orientation
+    *del,ELEMNUM
+    *dim,ELEMNUM,ARRAY,XYELEM ! matrix with element numbers (renew for every chip)
+    *do,j,1,XYELEM
+        ELEMNUM(j) = j
+    *enddo
+
+    ! Change element local coordinate system
+    *do,j,1,XYELEM
+        *if,ChipIn(j),eq,11+i,then
+            ALLSEL,ALL
+            ESEL,S,ELEM,,ELEMNUM(j)
+            EMODIF,ALL,ESYS,ChipIn(j)
+            ALLSEL,ALL
+        *endif
+    *enddo
+
+
+
+
+
+
+
+    ! modifi the ELEMUN matrix to acomodate the stacking of chips
+    *do,j,1,NELMX
+        *do,k,1,NELMY
+
+            *if,MainPosition(j,k),eq,1,then
+                z = 2
+            *else
+                z = 1
+            *endif
+
+            *if,ChipIn(j*k),gt,0,then
+                MainPosition(j,k,z) = 1
+            *endif
+
+        *enddo
+    *enddo
+
+
+
+*enddo
+
+
+*cfopen,test.out
+*VWRITE,'chip:',MainPosition(1),adiv
+(A6,F8.0,A6,A3)
+*cfclose
+
+
+C************************************************************
+C*** Plot the chips based on local coordinate systeme defined
+C************************************************************
+
+/PNUM,KP,0  
+/PNUM,LINE,0
+/PNUM,AREA,0
+/PNUM,VOLU,0
+/PNUM,NODE,0
+/PNUM,TABN,0
+/PNUM,SVAL,0
+/NUMBER,1   
+/PNUM,ESYS,1
+/REPLOT 
+/VIEW,1,,,-1
+/ANG,1  
+/REP,FAST   
+
+
+C************************************************************
+C*** Define material properties
+C************************************************************
+
+! Define material elastic
+MP,EX,1,56.1e9    
+MP,EY,1,57.3e9   
+MP,EZ,1,57.3e9  
+MP,PRXY,1,0.3
+MP,PRYZ,1,0.3
+MP,PRXZ,1,0.3
+MP,GXY,1,4.5e9 
+MP,GYZ,1,4.5e9
+MP,GXZ,1,4.5e9
+
+! Material Strengths
+TB,FCLI,1,1,6
+TBTEMP,0
+TBDATA,1,776e6  ! Failure Stress, Fiber Tension
+TBDATA,2,585e6  ! Failure Stress, Fiber Compression
+TBDATA,3,839e6  ! Toughness Stress, Matrix Tension
+TBDATA,4,595e6  ! Failure Stress, Matrix Compression
+TBDATA,7,155e6  ! Failure Stress, XY Shear
+TBDATA,8,155e6  ! Failure Stress, YZ Shear
+
+! Damage detection using failure criteria
+TB, DMGI, 1, 1, 4, FCRT
+TBTEMP,0
+TBDATA,1,4,4,4,4 ! 4 is the value for selecting Hashin criteria,
+
+! Damage Evolution with CDM Method
+TB,DMGE,1,1,8,CDM
+TBTEMP,0
+TBDATA,1,12.5   ! Fracture Toughness, Fiber Tensile
+TBDATA,2,1e-3   ! Viscosity Damping Coefficient, Fiber Tensile
+TBDATA,3,12.5   ! Fracture Toughness, Fiber Compressive
+TBDATA,4,1e-3   ! Viscosity Damping Coefficient, Fiber Compressive
+TBDATA,5,1      ! Fracture Toughness, Matrix Tensile
+TBDATA,6,1e-5   ! Viscosity Damping Coefficient, Matrix Tensile
+TBDATA,7,1      ! Fracture Toughness, Matrix Compressive
+TBDATA,8,1e-5   ! Viscosity Damping Coefficient, Matrix Compressive
+
+c*******************************
+c*** define boundry conditions
+c*******************************
+
+
+
+
+
+c****************************
+c*** define analysis setting
+c****************************
+
+
+
+

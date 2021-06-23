@@ -1,0 +1,367 @@
+!************************************************************
+!*** Initialisation
+!************************************************************
+
+finish
+/clear
+/PREP7 
+
+/TITLE, 3D DLF composite, Damage progression model
+
+ResultNum = 1
+
+!************************************************************
+!*** create the mesh
+!************************************************************
+
+!element type
+ET,1,SOLID185
+
+! define the geometry of the speciemen (MM)
+LENGTH = 150
+HEIGTH = 25
+THICK = 2.8
+BLOCK,0,LENGTH,0,HEIGTH,0,THICK 
+
+! CHIP DIMENTIONS (MM)
+CDIMX = 25
+CDIMY = 25
+CDIMZ = 0.14
+CAREA = CDIMX*CDIMY
+
+! mesh the part
+NELMX = 150             ! NUMBER OF ELEMENTS IN THE Y DIRECTION
+NELMY = 25              ! NUMBER OF ELEMENTS IN THE X DIRECTION
+NELMZ = THICK/CDIMZ     ! NUMBER OF ELEMENTS IN THE Z DIRECTION
+
+allsel,all 
+LSEL, s, line,,5
+LESIZE,all, , ,NELMX, , , , ,1
+
+allsel,all
+LSEL, s, line,,6
+LESIZE,all, , ,NELMY, , , , ,1 
+
+allsel,all
+LSEL, s, line,,11 
+LESIZE,all, , ,NELMZ, , , , ,1  
+
+allsel,all
+TYPE,1   
+MAT,1
+ESYS,0   
+SECNUM, 
+VMESH,all   
+
+!************************************************************
+!*** DEFINE THE MATERIAL ORIENTATION OF EACH ELEMENTS
+!************************************************************
+
+allsel
+
+! create the array for the X and Y position 
+! FOR THE FIRST ROW OF ELEMENTS
+XYELEM = NELMX*NELMY
+XYZELEM = NELMX*NELMY*NELMZ
+allsel
+*del,myPosition
+*dim,myPosition,ARRAY,XYELEM,2
+*do,i,1,XYELEM
+    *get,myPosition(i,1),ELEM,i,CENT,x
+    *get,myPosition(i,2),ELEM,i,CENT,y
+*enddo
+
+! create the random position and random orientation of the chip
+CHIPNUM = 5000 ! number of chips
+
+pi = 3.14159
+
+*del,Theta
+*del,ChipX
+*del,ChipY
+
+*Dim,Theta,ARRAY,CHIPNUM
+*Dim,ChipX,ARRAY,CHIPNUM
+*Dim,ChipY,ARRAY,CHIPNUM
+
+*vfill,Theta,rand,-90,90
+*vfill,ChipX,rand,0,LENGTH
+*vfill,ChipY,rand,0,HEIGTH
+
+
+
+*del,Zposition
+*dim,Zposition,ARRAY,XYELEM
+
+! changer do loop a un while loop
+i = 1
+exitval = 1
+*dowhile,exitval
+
+    angle = Theta(i)*pi/180 ! change angle to radian
+
+    ! REDEFINE COORDINATE SYSTEME OF ELEMENTS
+    ! coordinate system must start a 12
+    CLOCAL,11+i,0,ChipX(i),ChipY(i),0,Theta(i),0,0,
+    CSYS,0
+
+    ! CALCULATE WHAT ELEMENTS ARE INSIDE OF CHIP
+    x1=ChipX(i)-((CDIMX/2)*cos(angle))-((CDIMY/2)*sin(angle))
+    y1=ChipY(i)-((CDIMX/2)*sin(angle))+((CDIMY/2)*cos(angle))
+
+    x2=ChipX(i)+((CDIMX/2)*cos(angle))-((CDIMY/2)*sin(angle))
+    y2=ChipY(i)+((CDIMX/2)*sin(angle))+((CDIMY/2)*cos(angle))
+
+    x3=ChipX(i)+((CDIMX/2)*cos(angle))+((CDIMY/2)*sin(angle))
+    y3=ChipY(i)+((CDIMX/2)*sin(angle))-((CDIMY/2)*cos(angle))
+
+    x4=ChipX(i)-((CDIMX/2)*cos(angle))+((CDIMY/2)*sin(angle))
+    y4=ChipY(i)-((CDIMX/2)*sin(angle))-((CDIMY/2)*cos(angle))
+
+    ! check what elements are inside of chip and create name selection of elements
+    *del,ChipIn
+    *dim,ChipIn,ARRAY,XYELEM
+
+    *do,j,1,XYELEM
+        ABP = abs(((x1*y2)+(x2*myPosition(j,2))+(myPosition(j,1)*y1)-(y1*x2)-(y2*myPosition(j,1))-(myPosition(j,2)*x1))/2)
+        ADP = abs(((x1*y3)+(x3*myPosition(j,2))+(myPosition(j,1)*y1)-(y1*x3)-(y3*myPosition(j,1))-(myPosition(j,2)*x1))/2)
+        DCP = abs(((x3*y4)+(x4*myPosition(j,2))+(myPosition(j,1)*y3)-(y3*x4)-(y4*myPosition(j,1))-(myPosition(j,2)*x3))/2)
+        BCP = abs(((x4*y2)+(x2*myPosition(j,2))+(myPosition(j,1)*y4)-(y4*x2)-(y2*myPosition(j,1))-(myPosition(j,2)*x4))/2)
+        AreaCal = ABP+ADP+DCP+BCP
+
+        *if,AreaCal,le,CAREA,then
+            ChipIn(j) = (11+i)
+        *endif
+    *enddo
+
+    ! build the main matrix with all element orientation
+    *del,ELEMNUM
+    *dim,ELEMNUM,ARRAY,XYELEM ! matrix with element numbers (renew for every chip)
+    *do,j,1,XYELEM
+        ELEMNUM(j) = j
+    *enddo
+
+    ! modify the ELEMUN matrix to acomodate the stacking of chips
+    *del,NEWELEMNUM
+    *DIM,NEWELEMNUM,ARRAY,XYELEM
+
+    *do,j,1,XYELEM
+        *if,ChipIn(j),gt,0,AND,i,gt,1,then
+            
+            NEWELEMNUM(j) = ELEMNUM(j)+(Zposition(j)*XYELEM)
+            Zposition(j) = Zposition(j) + 1
+        *elseif,i,eq,1,then
+            NEWELEMNUM(j) = ELEMNUM(j)
+        *else
+            NEWELEMNUM(j) = ELEMNUM(j)      
+        *endif
+    *enddo
+
+    ! Change element local coordinate system
+    *do,j,1,XYELEM
+        *if,ChipIn(j),eq,11+i,and,NEWELEMNUM(j),le,XYZELEM,then
+            ALLSEL,ALL
+            ESEL,S,ELEM,,NEWELEMNUM(j)
+            EMODIF,ALL,ESYS,ChipIn(j)
+            ALLSEL,ALL
+        *endif
+    *enddo
+
+    ! cheque if all the elements are filled
+    *do,j,1,XYELEM
+        *if,Zposition(j),le,NELMZ,then
+            *EXIT
+        *elseif,j,eq,XYELEM,then
+            exitval = 0
+        *endif
+    *enddo
+    i = i + 1
+*enddo
+
+!************************************************************
+!*** Plot the chips based on local coordinate systeme defined
+!************************************************************
+
+! vue on the back and select the element and no numbers
+/PNUM,KP,0  
+/PNUM,LINE,0
+/PNUM,AREA,0
+/PNUM,VOLU,0
+/PNUM,NODE,0
+/PNUM,TABN,0
+/PNUM,SVAL,0
+/NUMBER,1   
+/PNUM,ESYS,1
+/REPLOT 
+/VIEW,1,,,-1
+/ANG,1  
+/REP,FAST   
+
+
+!************************************************************
+!*** Define material properties
+!************************************************************
+
+! Define material elastic
+MP,EX,1,56.1e3    
+MP,EY,1,57.3e3   
+MP,EZ,1,57.3e3  
+MP,PRXY,1,0.3
+MP,PRYZ,1,0.3
+MP,PRXZ,1,0.3
+MP,GXY,1,4.5e3 
+MP,GYZ,1,4.5e3
+MP,GXZ,1,4.5e3
+
+! Material Strengths
+TB,FCLI,1,1,6
+TBTEMP,0
+TBDATA,1,776  ! Failure Stress, Fiber Tension
+TBDATA,2,585  ! Failure Stress, Fiber Compression
+TBDATA,3,839  ! Toughness Stress, Matrix Tension
+TBDATA,4,595  ! Failure Stress, Matrix Compression
+TBDATA,7,155  ! Failure Stress, XY Shear
+TBDATA,8,155  ! Failure Stress, YZ Shear
+
+! Damage detection using failure criteria
+TB, DMGI, 1, 1, 4, FCRT
+TBTEMP,0
+TBDATA,1,3,3,3,3 ! 3 is the value for selecting Puck criteria,
+
+! Damage Evolution with MPDG Method
+! value of reduction is between 0 and 1, where 1 represents total lost of stiffness
+TB,DMGE,1,1,4,MPDG
+TBTEMP,0
+TBDATA,1,0.75   ! Tensile fiber stiffness reduction
+TBDATA,2,0.75   ! Compressive fiber stiffness reduction
+TBDATA,3,0.75   ! Tensile matrix stiffness reduction
+TBDATA,4,0.75   ! Compressive matrix stiffness reduction
+
+
+!*******************************
+!*** define boundry conditions
+!*******************************
+
+! select moving nodes
+ALLsel,all
+NSEL,S,LOC,x,LENGTH-0.1,LENGTH+0.1
+CM,MovingNodes,NODE
+
+! select fix nodes
+ALLsel,all
+NSEL,S,LOC,x,-0.1,0.1
+CM,FixNodes,NODE
+
+! select encaster node
+allsel,all
+NSEL,S,LOC,x,-0.1,0.1
+NSEL,R,LOC,y,(HEIGTH/2-1),(HEIGTH/2+1)
+NSEL,R,LOC,z,(THICK/2-0.1),(THICK/2+0.1)
+CM,EncasterNodes,NODE
+
+! apply BC to fix nodes
+allsel,all
+CMSEL,s,fixNodes ! reselect name selection
+D,ALL,UX,0
+
+! apply BC to moving nodes
+allsel,all
+CMSEL,s,MovingNodes ! reselect name selection
+D,ALL,UX,LENGTH*0.01
+
+! apply BC to encaster nodes
+allsel,all
+CMSEL,s,EncasterNodes ! reselect name selection
+D,ALL,ALL
+
+finish
+
+!****************************
+!*** define analysis setting
+!****************************
+
+/solu
+allsel,all
+ANTYPE,STATIC,new
+NLGEOM,on
+stabilize,Constant,Energy,1e-4
+CUTCONTROL,NPOINT,20
+
+! output results options
+outres,Erase
+outres,basic,5
+outres,AESO,5
+
+! time step option
+AUTOTS,on
+DELTIM,0.01,1e-8,0.1
+TIME,1
+
+SAVE
+solve
+finish
+
+!********************************************
+!*** Stress-disp curve (post processing)
+!********************************************
+
+! status of the elements
+/post1
+allsel,all
+PLNSOL,PDMG,STAT
+finish
+
+! force vs time of the moving face
+/post26
+
+allsel,all
+CMSEL,s,MovingNodes ! reselect name selection
+
+*get,numbnod,node,,count ! no. of nodes with reaction forces in y-direction
+node=0 ! initialize
+node=ndnext(node)
+rforce,2,node,f,x
+
+*do,i,1,numbnod-1
+    node=ndnext(node)
+    rforce,3,node,f,x
+    add,2,2,3
+*enddo
+
+! calculate the macro-stress
+Division = 1/(HEIGTH*THICK)
+ADD,4,2,,,,,,Division,,
+
+! calculate the macro-strain
+NSOL,7,node,U,X, Xdisp,
+!ADD,7,7,,,,,,(1/LENGTH),,
+
+! plot the stress strain
+/AXLAB,x,Displacement (mm)
+/AXLAB,y,Stress (MPa)
+XVAR,7  
+plvar,4
+
+! calculate the max stress
+VGET,Stress,4
+VGET,Displacement,7
+*vscfun, MaxStress, max, Stress
+
+My_MaxStress = MaxStress
+
+!********************************************
+!*** Tension modulus (post processing)
+!********************************************
+
+FirstDisp = Displacement(1,1,1)
+FirstStress = Stress(1,1,1)
+
+SecondDisp = Displacement(2,1,1)
+SecondStress = Stress(2,1,1)
+
+Modulus = (SecondStress-FirstStress)/((SecondDisp-FirstDisp)/LENGTH)
+
+*del,ResultsMat
+*Dim,ResultsMat,ARRAY,2
+ResultsMat(1,1,1) = My_MaxStress
+ResultsMat(2,1,1) = Modulus

@@ -1,0 +1,68 @@
+
+/PREP7
+
+! define the geometry of the speciemen (M)
+LENGTH = 0.150
+HEIGTH = 0.025
+THICK = 0.00252
+Parameter = 1e-3
+
+! select moving nodes
+ALLsel,all
+NSEL,S,LOC,x,LENGTH-Parameter,LENGTH+Parameter
+CM,MovingNodes,NODE
+
+! select fix nodes
+ALLsel,all
+NSEL,S,LOC,x,-Parameter,Parameter
+CM,FixNodes,NODE
+
+! select encaster node
+allsel,all
+NSEL,S,LOC,x,-Parameter,Parameter
+NSEL,R,LOC,y,(HEIGTH/2-Parameter),(HEIGTH/2+Parameter)
+NSEL,R,LOC,z,(THICK/2-Parameter),(THICK/2+Parameter)
+CM,EncasterNodes,NODE
+
+! apply BC to fix nodes
+allsel,all
+CMSEL,s,fixNodes ! reselect name selection
+D,ALL,UX,0
+
+! apply BC to moving nodes
+allsel,all
+CMSEL,s,MovingNodes ! reselect name selection
+D,ALL,UX,LENGTH*0.01
+
+! apply BC to encaster nodes
+allsel,all
+CMSEL,s,EncasterNodes ! reselect name selection
+D,ALL,ALL
+
+finish
+
+!****************************
+!*** define analysis setting
+!****************************
+
+/solu
+allsel,all
+ANTYPE,STATIC,new
+NLGEOM,on
+stabilize,Constant,Energy,1e-4
+CUTCONTROL,NPOINT,20
+
+! output results options
+outres,Erase
+outres,basic,2
+outres,AESO,2
+
+! time step option
+AUTOTS,on
+DELTIM,0.01,1e-6,0.1
+TIME,1
+
+SAVE
+solve
+finish
+

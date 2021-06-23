@@ -1,0 +1,25 @@
+/NOPR
+/RESET
+/DEVICE,VECT,OFF 
+! General Graphics Settings
+/NUM,  1
+/PLOP,INFO, 3
+/GTHK,CURV,  2
+/GROPT,CGRI,ON
+/GROPT,CURL,  1
+/PNUM,ESYS, 1
+/PSYM,LDIV,-1
+/TRLCY,ON
+/TXTRE,ON
+/COL, PBAK,0, 1,  4
+! Window Settings
+/VIEW,1,-0.55305    , 0.66049    , 0.50782    
+/FOC, 1,  75.000    ,  12.500    ,  1.2600    
+/DIST,1,  51.850    
+/ANG, 1,  114.29    ,ZS
+/TYPE,1, 6
+/EDG, 1, 0,  45.000    
+/GLIN,1,-1
+/CONT,1,  9,AUTO
+/DSCA,1,  1.0000    
+/GO  
